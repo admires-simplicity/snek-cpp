@@ -1,11 +1,16 @@
 #include <ncurses.h>
 #include <unistd.h>
+#include <cstdlib>
+#include <cassert>
 #include <deque>
 
 enum directions {UP, DOWN, LEFT, RIGHT};
 
 struct pos {
 	int y, x;
+	bool operator==(const pos& rhs) const {
+		return y == rhs.y && x == rhs.x;
+	}
 };
 
 class Snake {
@@ -33,6 +38,13 @@ public:
 		moveSnake(next);
 	}
 
+	bool hitSelf() {
+		for (auto p : body)
+			if (p == body.front())
+				return true;
+		return false;
+	}
+
 
 
 private:
@@ -48,6 +60,13 @@ const int win_width = 41;
 
 bool out_of_bounds(pos p) {
 	return p.y < 1 || p.y >= win_height - 1 || p.x < 1 || p.x >= win_width - 1;
+}
+
+pos randApple() {
+	pos apple;
+	apple.y = rand() % (win_height - 2) + 1;
+	apple.x = rand() % (((win_width - 2) / 2) + 1) * 2;
+	return apple;
 }
 
 int main(int argc, char *argv[])
@@ -84,6 +103,8 @@ int main(int argc, char *argv[])
 
 	bool ded = false;
 
+	pos apple = randApple();
+	
 	do {
 		c = getch();
 		wclear(stdscr);
@@ -94,8 +115,7 @@ int main(int argc, char *argv[])
 
 		wclear(win);
 		box(win, 0, 0);
-		//wmove(win, y, x);
-		//wprintw(win, "frame %2d", f);
+
 
 		//render snek
 		wattron(win, COLOR_PAIR(1));
@@ -105,6 +125,10 @@ int main(int argc, char *argv[])
 		}
 		wattroff(win, COLOR_PAIR(1));
 
+		// render apple
+		wmove(win, apple.y, apple.x);
+		waddch(win, '*');
+
 		if (out_of_bounds(snek.body.front())) {
 			ded = true;
 			wmove(win, snek.body.front().y, snek.body.front().x);
@@ -113,6 +137,7 @@ int main(int argc, char *argv[])
 			attroff(COLOR_PAIR(1));
 
 		}
+
 
 		switch (c) {
 			case KEY_UP:   if (dir != DOWN)  dir = UP;    break; 
@@ -127,6 +152,10 @@ int main(int argc, char *argv[])
 			case RIGHT: snek.moveRight(); break;
 		}
 
+		if (snek.body.front() == apple) {
+			snek.body.push_back(snek.body.back());
+			apple = randApple();
+		}
 		
 
 		//wmove(win, y, x);
