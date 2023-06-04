@@ -5,6 +5,12 @@
 #include <deque>
 
 enum directions {UP, DOWN, LEFT, RIGHT};
+enum status {LIVE, DED};
+enum cause_of_death {NONE, AUTOSARCOPHAGY, WALL_BRUTALITY};
+
+//GLOBALS
+const int win_height = 20;
+const int win_width = 41;
 
 struct pos {
 	int y, x;
@@ -17,6 +23,9 @@ class Snake {
 public:
 	//std::deque<pos> body { std::deque<pos>(0) };
 	std::deque<pos> body;
+	//directions dir { RIGHT };	
+
+
 	//Snake() : body{std::deque<pos>(0)};
 	//Snake(std::deque<pos> b) : body(b) {}
 	Snake() {};
@@ -38,34 +47,61 @@ public:
 		moveSnake(next);
 	}
 
-	bool hitSelf() {
-		for (auto p : body)
-			if (p == body.front())
+
+	void die() {
+		stat = DED;
+	}
+
+	bool isDead() {
+		return stat == DED;
+	}
+
+	cause_of_death deathBy() {
+		return cod;
+	}
+
+	bool colliding(pos p) const {
+		for (auto b : body)
+			if (b == p)
 				return true;
 		return false;
 	}
 
-
-
 private:
+	status stat { LIVE };
+	cause_of_death cod { NONE };
+
 	void moveSnake(pos next) {
+		if (ateSelf(next)) {
+			die();
+			cod = AUTOSARCOPHAGY;
+		} else 
+		if (out_of_bounds(next)) {
+			die();
+			cod = WALL_BRUTALITY;
+		}
+		if (isDead()) return;
 		body.push_front(next);
 		body.pop_back();
 	}
 
+	bool ateSelf(pos next) {
+		return colliding(next);
+	}
+
+	bool out_of_bounds(pos p) {
+		return p.y < 1 || p.y >= win_height - 1 || p.x < 1 || p.x >= win_width - 1;
+	}
+
+
 };
 
-const int win_height = 20;
-const int win_width = 41;
-
-bool out_of_bounds(pos p) {
-	return p.y < 1 || p.y >= win_height - 1 || p.x < 1 || p.x >= win_width - 1;
-}
-
-pos randApple() {
+pos randApple(const Snake &snek) {
 	pos apple;
-	apple.y = rand() % (win_height - 2) + 1;
-	apple.x = rand() % (((win_width - 2) / 2) + 1) * 2;
+	do {
+		apple.y = rand() % (win_height - 2) + 1;
+		apple.x = rand() % (((win_width - 2) / 2)) * 2 + 2;
+	} while (snek.colliding(apple));
 	return apple;
 }
 
@@ -94,7 +130,6 @@ int main(int argc, char *argv[])
 
 	//int f = 0;
 
-	directions dir = RIGHT;
 	Snake snek;
 	snek.body.push_back({1, 6});
 	snek.body.push_back({1, 4});
@@ -103,10 +138,10 @@ int main(int argc, char *argv[])
 
 	bool ded = false;
 
-	pos apple = randApple();
+	directions dir { RIGHT };
+	pos apple = randApple(snek);
 	
 	do {
-		c = getch();
 		wclear(stdscr);
 
 		attron(COLOR_PAIR(1));
@@ -129,15 +164,16 @@ int main(int argc, char *argv[])
 		wmove(win, apple.y, apple.x);
 		waddch(win, '*');
 
-		if (out_of_bounds(snek.body.front())) {
-			ded = true;
-			wmove(win, snek.body.front().y, snek.body.front().x);
-			attron(COLOR_PAIR(1));
-			waddch(win, 'o');
-			attroff(COLOR_PAIR(1));
+		//if (out_of_bounds(snek.body.front())) {
+		//	snek.die();
+		//	wmove(win, snek.body.front().y, snek.body.front().x);
+		//	attron(COLOR_PAIR(1));
+		//	waddch(win, 'x');
+		//	attroff(COLOR_PAIR(1));
 
-		}
-
+		//}
+		
+		c = getch();
 
 		switch (c) {
 			case KEY_UP:   if (dir != DOWN)  dir = UP;    break; 
@@ -152,9 +188,24 @@ int main(int argc, char *argv[])
 			case RIGHT: snek.moveRight(); break;
 		}
 
+		if (snek.isDead()) {
+			wmove(win, snek.body.front().y, snek.body.front().x);
+			waddch(win, 'x');
+		}
+
+		
+		//switch (c) {
+		//	case KEY_UP:    snek.moveUp();    break;
+		//	case KEY_DOWN:  snek.moveDown();  break;
+		//	case KEY_LEFT:  snek.moveLeft();  break;
+		//	case KEY_RIGHT: snek.moveRight(); break;
+		//	default: break;
+		//}
+		//wprintw(win, "%d", x);
+
 		if (snek.body.front() == apple) {
 			snek.body.push_back(snek.body.back());
-			apple = randApple();
+			apple = randApple(snek);
 		}
 		
 
@@ -166,17 +217,26 @@ int main(int argc, char *argv[])
 
 		refresh();
 		wrefresh(win);
-	} while (c = getch(), 
+	} while (//c = getch(), 
 			//usleep(16666),
 			usleep(100000),
 			//(++f > 60) ? f = 0 : f,
-			c != 'q' && c != 'Q' && !ded);
+			c != 'q' && c != 'Q' && !snek.isDead());
 
-	printw(" YOU DIED BY RUNNING INTO A WALL");
+
+	if (snek.deathBy() == WALL_BRUTALITY)
+		printw(" YOU DIED BY RUNNING INTO A WALL");
+	else if (snek.deathBy() == AUTOSARCOPHAGY)
+		printw(" CONGRATULATIONS, YOU ATE YOURSELF");
+	else if (c == 'q' || c == 'Q') {
+		printw(" GAME ABORTED");
+	}
 
 	timeout(-1);
 	getch();
 	endwin();			
+
+	printf("goodbye!\n");
 
 	return 0;
 }
